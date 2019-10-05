@@ -16,13 +16,22 @@ import Task
 ---- MODEL ----
 
 
-type alias Model =
-    Maybe String
+type FileError
+    = TooBig
+    | NotCsv
+
+
+type Model
+    = Idle
+    | UserPicking
+    | ReadingFile
+    | FileError FileError
+    | FileStr String
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Nothing, Cmd.none )
+    ( Idle, Cmd.none )
 
 
 
@@ -46,43 +55,87 @@ read file =
     Task.perform CsvRead (File.toString file)
 
 
+handle : File -> Model -> ( Model, Cmd Msg )
+handle file model =
+    let
+        bigFile =
+            File.size file > 400000
+
+        isCsv =
+            File.mime file == "text/csv"
+    in
+    case ( bigFile, isCsv ) of
+        ( True, _ ) ->
+            ( FileError TooBig, Cmd.none )
+
+        ( _, False ) ->
+            ( FileError NotCsv, Cmd.none )
+
+        _ ->
+            ( ReadingFile, read file )
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Click ->
-            ( model, requestCsv )
+            ( UserPicking, requestCsv )
 
         Clear ->
-            ( Nothing, Cmd.none )
+            ( Idle, Cmd.none )
 
         CsvLoad file ->
-            ( model, read file )
+            handle file model
 
         CsvRead str ->
-            ( Just str, Cmd.none )
+            ( FileStr str, Cmd.none )
 
 
 
 ---- VIEW ----
 
 
-showUpload : Model -> Element msg
-showUpload model =
+statusBox : Model -> Element msg
+statusBox model =
     let
-        txt =
-            model |> Maybe.withDefault "Nothing yet"
+        str =
+            case model of
+                Idle ->
+                    ""
+
+                UserPicking ->
+                    "A picking window should've popped up"
+
+                ReadingFile ->
+                    "File is being read"
+
+                FileStr fileStr ->
+                    fileStr
+
+                FileError error ->
+                    case error of
+                        TooBig ->
+                            "File is too big"
+
+                        NotCsv ->
+                            "File is not a .csv"
     in
-    el [ centerX ] <| text txt
+    el [ centerX ] <| text str
 
 
 clearUpload : Model -> Element Msg
 clearUpload model =
     case model of
-        Nothing ->
-            none
+        FileStr _ ->
+            Input.button
+                [ padding 5
+                , centerX
+                , Background.color <| rgb 0.2 0.5 0.7
+                ]
+                { onPress = Just Clear, label = text "Clear upload" }
 
-        Just _ ->
-            Input.button [ padding 5, centerX, Background.color <| rgb 0.5 0.5 0.5 ] { onPress = Just Clear, label = text "Clear upload" }
+        _ ->
+            none
 
 
 view : Model -> Html Msg
@@ -99,9 +152,14 @@ view model =
                 , centerX
                 ]
                 { onPress = Just Click, label = none }
-            , el [ Font.center, centerX ] <| text "Click the elm logo to upload a .csv"
+            , el
+                [ Font.center
+                , centerX
+                ]
+              <|
+                text "Click the elm logo to upload a .csv"
             , clearUpload model
-            , showUpload model
+            , statusBox model
             ]
 
 

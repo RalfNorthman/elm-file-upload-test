@@ -8,7 +8,6 @@ import Element.Input as Input
 import File exposing (File)
 import File.Select as Select
 import Html exposing (Html)
-import Html.Attributes exposing (src)
 import Task
 
 
@@ -55,8 +54,8 @@ read file =
     Task.perform CsvRead (File.toString file)
 
 
-handle : File -> Model -> ( Model, Cmd Msg )
-handle file model =
+handle : File -> ( Model, Cmd Msg )
+handle file =
     let
         bigFile =
             File.size file > 400000
@@ -76,7 +75,7 @@ handle file model =
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update msg _ =
     case msg of
         Click ->
             ( UserPicking, requestCsv )
@@ -85,7 +84,7 @@ update msg model =
             ( Idle, Cmd.none )
 
         CsvLoad file ->
-            handle file model
+            handle file
 
         CsvRead str ->
             ( FileStr str, Cmd.none )

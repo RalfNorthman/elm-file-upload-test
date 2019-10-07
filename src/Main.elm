@@ -1,9 +1,9 @@
 module Main exposing (main)
 
 import Browser
+import Csv
 import Element exposing (..)
 import Element.Background as Background
-import Element.Font as Font
 import Element.Input as Input
 import File exposing (File)
 import File.Select as Select
@@ -94,8 +94,47 @@ update msg _ =
 ---- VIEW ----
 
 
-statusBox : Model -> Element msg
-statusBox model =
+uploadButton : Element Msg
+uploadButton =
+    column
+        [ spacing 10
+        , padding 10
+        , centerX
+        ]
+        [ Input.button
+            [ Background.image "/logo.svg"
+            , padding 30
+            , centerX
+            ]
+            { onPress = Just Click
+            , label = none
+            }
+        , el
+            []
+          <|
+            text "Click the elm logo to upload a .csv"
+        ]
+
+
+clearButton : Model -> Element Msg
+clearButton model =
+    case model of
+        FileStr _ ->
+            Input.button
+                [ padding 5
+                , centerX
+                , Background.color <| rgb 0.2 0.5 0.7
+                ]
+                { onPress = Just Clear
+                , label = text "Clear upload"
+                }
+
+        _ ->
+            none
+
+
+statusText : Model -> Element msg
+statusText model =
     let
         str =
             case model of
@@ -108,8 +147,8 @@ statusBox model =
                 ReadingFile ->
                     "File is being read"
 
-                FileStr fileStr ->
-                    fileStr
+                FileStr _ ->
+                    "File loaded:"
 
                 FileError error ->
                     case error of
@@ -122,16 +161,30 @@ statusBox model =
     el [ centerX ] <| text str
 
 
-clearUpload : Model -> Element Msg
-clearUpload model =
-    case model of
-        FileStr _ ->
-            Input.button
-                [ padding 5
-                , centerX
-                , Background.color <| rgb 0.2 0.5 0.7
+dataTable : Model -> Element msg
+dataTable model =
+    let
+        makeTable : String -> Element msg
+        makeTable str =
+            let
+                csv =
+                    Csv.parse str
+            in
+            column []
+                [ row [ spacing 10 ] <|
+                    List.map text csv.headers
+                , column [ spacing 10 ]
+                    (List.map
+                        (\lst ->
+                            (\s -> row [ spacing 10 ] (List.map text s)) lst
+                        )
+                        csv.records
+                    )
                 ]
-                { onPress = Just Clear, label = text "Clear upload" }
+    in
+    case model of
+        FileStr str ->
+            makeTable str
 
         _ ->
             none
@@ -145,20 +198,10 @@ view model =
             , width <| px 300
             , spacing 10
             ]
-            [ Input.button
-                [ Background.image "/logo.svg"
-                , padding 30
-                , centerX
-                ]
-                { onPress = Just Click, label = none }
-            , el
-                [ Font.center
-                , centerX
-                ]
-              <|
-                text "Click the elm logo to upload a .csv"
-            , clearUpload model
-            , statusBox model
+            [ uploadButton
+            , clearButton model
+            , statusText model
+            , dataTable model
             ]
 
 

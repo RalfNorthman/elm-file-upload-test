@@ -178,6 +178,14 @@ record =
         (Csv.Decode.maybe Csv.Decode.int)
 
 
+numberField : Maybe Int -> Element msg
+numberField x =
+    Maybe.map String.fromInt x
+        |> Maybe.withDefault ""
+        |> text
+        |> el [ Font.alignRight ]
+
+
 makeTable : List Record -> Element msg
 makeTable records =
     el [ centerX ] <|
@@ -189,7 +197,7 @@ makeTable records =
             , columns =
                 [ { header = text "Id"
                   , width = shrink
-                  , view = \r -> text <| String.fromInt r.id
+                  , view = \r -> numberField <| Just r.id
                   }
                 , { header = text "Name"
                   , width = shrink
@@ -197,12 +205,7 @@ makeTable records =
                   }
                 , { header = text "Parent Id"
                   , width = shrink
-                  , view =
-                        \r ->
-                            text
-                                (Maybe.map String.fromInt r.parentId
-                                    |> Maybe.withDefault ""
-                                )
+                  , view = \r -> numberField r.parentId
                   }
                 ]
             }

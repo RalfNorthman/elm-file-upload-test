@@ -22,12 +22,17 @@ type FileError
     | NotCsv
 
 
+type LoadingDone
+    = CsvParseFailure Csv.Decode.Error
+    | Parsed (List Record)
+
+
 type Model
     = Idle
     | UserPicking
     | ReadingFile
     | FileError FileError
-    | FileStr String
+    | LoadingDone LoadingDone
 
 
 init : ( Model, Cmd Msg )
@@ -76,6 +81,15 @@ handle file =
             ( ReadingFile, read file )
 
 
+csvParse : String -> Result Csv.Decode.Error (List Record)
+csvParse str =
+    let
+        csv =
+            Csv.parse str
+    in
+    Csv.Decode.decode record csv
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg _ =
     case msg of
@@ -89,7 +103,12 @@ update msg _ =
             handle file
 
         CsvRead str ->
-            ( FileStr str, Cmd.none )
+            case csvParse str of
+                Ok records ->
+                    ( LoadingDone (Parsed records), Cmd.none )
+
+                Err error ->
+                    ( LoadingDone (CsvParseFailure error), Cmd.none )
 
 
 
@@ -121,7 +140,7 @@ uploadButton =
 clearButton : Model -> Element Msg
 clearButton model =
     case model of
-        FileStr _ ->
+        LoadingDone _ ->
             Input.button
                 [ padding 5
                 , centerX
@@ -147,10 +166,15 @@ statusText model =
                     "A picking window should've popped up"
 
                 ReadingFile ->
-                    "File is being read"
+                    "File is loading..."
 
-                FileStr _ ->
-                    "File loaded:"
+                LoadingDone something ->
+                    case something of
+                        Parsed _ ->
+                            "File loaded:"
+
+                        CsvParseFailure _ ->
+                            "Unexpected csv-format:"
 
                 FileError error ->
                     case error of
@@ -214,23 +238,13 @@ makeTable records =
 dataTable : Model -> Element msg
 dataTable model =
     case model of
-        FileStr str ->
-            let
-                csv =
-                    Csv.parse str
-
-                decoded =
-                    Csv.Decode.decode record csv
-            in
-            case decoded of
-                Ok records ->
+        LoadingDone something ->
+            case something of
+                Parsed records ->
                     makeTable records
 
-                Err error ->
-                    column [ spacing 10 ]
-                        [ text "Something went wrong:"
-                        , text <| Debug.toString error
-                        ]
+                CsvParseFailure error ->
+                    text <| Debug.toString error
 
         _ ->
             none

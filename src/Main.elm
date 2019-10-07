@@ -2,8 +2,10 @@ module Main exposing (main)
 
 import Browser
 import Csv
+import Csv.Decode
 import Element exposing (..)
 import Element.Background as Background
+import Element.Font as Font
 import Element.Input as Input
 import File exposing (File)
 import File.Select as Select
@@ -161,30 +163,71 @@ statusText model =
     el [ centerX ] <| text str
 
 
+type alias Record =
+    { id : Int
+    , name : String
+    , parentId : Maybe Int
+    }
+
+
+record : Csv.Decode.Decoder Record
+record =
+    Csv.Decode.map3 Record
+        Csv.Decode.int
+        Csv.Decode.string
+        (Csv.Decode.maybe Csv.Decode.int)
+
+
+makeTable : List Record -> Element msg
+makeTable records =
+    el [ centerX ] <|
+        table
+            [ spacing 10
+            , Font.alignLeft
+            ]
+            { data = records
+            , columns =
+                [ { header = text "Id"
+                  , width = shrink
+                  , view = \r -> text <| String.fromInt r.id
+                  }
+                , { header = text "Name"
+                  , width = shrink
+                  , view = \r -> text r.name
+                  }
+                , { header = text "Parent Id"
+                  , width = shrink
+                  , view =
+                        \r ->
+                            text
+                                (Maybe.map String.fromInt r.parentId
+                                    |> Maybe.withDefault ""
+                                )
+                  }
+                ]
+            }
+
+
 dataTable : Model -> Element msg
 dataTable model =
-    let
-        makeTable : String -> Element msg
-        makeTable str =
+    case model of
+        FileStr str ->
             let
                 csv =
                     Csv.parse str
+
+                decoded =
+                    Csv.Decode.decode record csv
             in
-            column []
-                [ row [ spacing 10 ] <|
-                    List.map text csv.headers
-                , column [ spacing 10 ]
-                    (List.map
-                        (\lst ->
-                            (\s -> row [ spacing 10 ] (List.map text s)) lst
-                        )
-                        csv.records
-                    )
-                ]
-    in
-    case model of
-        FileStr str ->
-            makeTable str
+            case decoded of
+                Ok records ->
+                    makeTable records
+
+                Err error ->
+                    column [ spacing 10 ]
+                        [ text "Something went wrong:"
+                        , text <| Debug.toString error
+                        ]
 
         _ ->
             none

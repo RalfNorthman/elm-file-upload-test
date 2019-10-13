@@ -5,6 +5,7 @@ import Csv
 import Csv.Decode
 import Element exposing (..)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import File exposing (File)
@@ -130,10 +131,10 @@ uploadButton =
             { onPress = Just Click
             , label = none
             }
-        , el
-            []
-          <|
-            text "Click the elm logo to upload a .csv"
+        , paragraph
+            [ Font.size 48
+            ]
+            [ text "ACTIVATE ACCESS ICON ABOVE" ]
         ]
 
 
@@ -142,9 +143,11 @@ clearButton model =
     case model of
         LoadingDone _ ->
             Input.button
-                [ padding 5
+                [ padding 10
+                , Font.bold
                 , centerX
                 , Background.color <| rgb 0.2 0.5 0.7
+                , Border.rounded 5
                 ]
                 { onPress = Just Clear
                 , label = text "Clear upload"
@@ -214,8 +217,10 @@ makeTable : List Record -> Element msg
 makeTable records =
     el [ centerX ] <|
         table
-            [ spacing 10
+            [ spacingXY 15 10
+            , decimal
             , Font.alignLeft
+            , Font.size 18
             ]
             { data = records
             , columns =
@@ -250,9 +255,29 @@ dataTable model =
             none
 
 
+isotope : Attribute msg
+isotope =
+    Font.family
+        [ Font.typeface "Isotope A"
+        , Font.sansSerif
+        ]
+
+
+decimal : Attribute msg
+decimal =
+    Font.family
+        [ Font.typeface "Decimal A"
+        , Font.monospace
+        ]
+
+
 view : Model -> Html Msg
 view model =
-    layout [ width fill, padding 20 ] <|
+    layout
+        [ width fill
+        , isotope
+        ]
+    <|
         column
             [ centerX
             , width <| px 300

@@ -23,9 +23,25 @@ type FileError
     | NotCsv
 
 
+type SortType
+    = Ascending
+    | Descending
+
+
+type Column
+    = Id
+    | Name
+    | ParentId
+
+
+type SortOrder
+    = AsRead
+    | Sort Column SortType
+
+
 type LoadingDone
     = CsvParseFailure Csv.Decode.Error
-    | Parsed (List Record)
+    | Parsed (List Record) SortOrder
 
 
 type Model
@@ -50,6 +66,7 @@ type Msg
     | Clear
     | CsvLoad File
     | CsvRead String
+    | ChangeOrder Column
 
 
 requestCsv : Cmd Msg
@@ -92,7 +109,7 @@ csvParse str =
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg _ =
+update msg model =
     case msg of
         Click ->
             ( UserPicking, requestCsv )
@@ -106,10 +123,82 @@ update msg _ =
         CsvRead str ->
             case csvParse str of
                 Ok records ->
-                    ( LoadingDone (Parsed records), Cmd.none )
+                    ( LoadingDone (Parsed records AsRead), Cmd.none )
 
                 Err error ->
                     ( LoadingDone (CsvParseFailure error), Cmd.none )
+
+        ChangeOrder column ->
+            case model of
+                LoadingDone (Parsed oldRecords oldOrder) ->
+                    let
+                        newOrder =
+                            reOrder column oldRecords oldOrder
+                    in
+                    ( LoadingDone newOrder, Cmd.none )
+
+                _ ->
+                    ( Idle, Cmd.none )
+
+
+sort : Column -> List Record -> List Record
+sort column records =
+    case column of
+        Id ->
+            List.sortBy .id records
+
+        Name ->
+            List.sortBy .name records
+
+        ParentId ->
+            List.sortBy
+                (\r -> Maybe.withDefault 0 r.parentId)
+                records
+
+
+order : List Record -> SortOrder -> List Record
+order oldRecords newOrder =
+    case newOrder of
+        Sort column Ascending ->
+            sort column oldRecords
+
+        Sort column Descending ->
+            sort column oldRecords |> List.reverse
+
+        AsRead ->
+            oldRecords
+
+
+reOrder : Column -> List Record -> SortOrder -> LoadingDone
+reOrder columnPressed oldRecords oldOrder =
+    let
+        process oldSortType =
+            let
+                newSortType =
+                    if oldSortType == Ascending then
+                        Descending
+
+                    else
+                        Ascending
+
+                newOrder =
+                    Sort columnPressed newSortType
+
+                newRecords =
+                    order oldRecords newOrder
+            in
+            Parsed newRecords newOrder
+    in
+    case oldOrder of
+        Sort oldColumnPressed Ascending ->
+            if oldColumnPressed == columnPressed then
+                process Ascending
+
+            else
+                process Descending
+
+        _ ->
+            process Descending
 
 
 
@@ -145,9 +234,16 @@ clearButton model =
             Input.button
                 [ padding 10
                 , Font.bold
+                , Font.glow (rgb 1 1 1) 5
                 , centerX
-                , Background.color <| rgb 0.2 0.5 0.7
+                , Background.color <| rgb 0.3 0.5 0.6
                 , Border.rounded 5
+                , Border.widthEach
+                    { left = 0
+                    , top = 0
+                    , right = 1
+                    , bottom = 1
+                    }
                 ]
                 { onPress = Just Clear
                 , label = text "Clear upload"
@@ -173,7 +269,7 @@ statusText model =
 
                 LoadingDone something ->
                     case something of
-                        Parsed _ ->
+                        Parsed _ _ ->
                             "File loaded:"
 
                         CsvParseFailure _ ->
@@ -213,7 +309,15 @@ numberField x =
         |> el [ Font.alignRight ]
 
 
-makeTable : List Record -> Element msg
+tableHeader : String -> Column -> Element Msg
+tableHeader title column =
+    Input.button []
+        { onPress = Just <| ChangeOrder column
+        , label = text title
+        }
+
+
+makeTable : List Record -> Element Msg
 makeTable records =
     el [ centerX ] <|
         table
@@ -224,15 +328,15 @@ makeTable records =
             ]
             { data = records
             , columns =
-                [ { header = text "Id"
+                [ { header = tableHeader "Id" Id
                   , width = shrink
                   , view = \r -> numberField <| Just r.id
                   }
-                , { header = text "Name"
+                , { header = tableHeader "Name" Name
                   , width = shrink
                   , view = \r -> text r.name
                   }
-                , { header = text "Parent Id"
+                , { header = tableHeader "Parent Id" ParentId
                   , width = shrink
                   , view = \r -> numberField r.parentId
                   }
@@ -240,12 +344,12 @@ makeTable records =
             }
 
 
-dataTable : Model -> Element msg
+dataTable : Model -> Element Msg
 dataTable model =
     case model of
         LoadingDone something ->
             case something of
-                Parsed records ->
+                Parsed records _ ->
                     makeTable records
 
                 CsvParseFailure error ->
@@ -276,6 +380,8 @@ view model =
     layout
         [ width fill
         , isotope
+        , Font.color <| rgb 0.1 0.2 0.15
+        , Background.color <| rgb 0.8 0.9 0.85
         ]
     <|
         column
